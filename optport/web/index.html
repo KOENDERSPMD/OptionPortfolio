@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Option Portfolio</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='2' width='12' height='12' rx='3' fill='%232f6fde'/></svg>">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="side-head">
+        <a href="#/" class="brand">Option Portfolio</a>
+      </div>
+      <nav class="side-nav" aria-label="Screens">
+        <a href="#/" data-nav="portfolio">📋 Portfolio</a>
+        <span class="nav-soon" title="Next screen to build">📈 Performance <span class="muted small">(next)</span></span>
+      </nav>
+      <div class="side-spacer"></div>
+      <a href="#/settings" class="tws-status" id="tws-status" title="Connection to TWS / IB Gateway">
+        <span class="conn-dot"></span> <span class="label">TWS</span>
+      </a>
+      <div class="side-bottom">
+        <a href="#/settings" class="side-settings" data-nav="settings">⚙ Settings</a>
+        <button class="side-quit" id="quit" title="Close Option Portfolio">⏻ Quit</button>
+      </div>
+    </aside>
+    <main id="main"></main>
+  </div>
+
+  <!-- new position, or a leg added to / edited in a position -->
+  <dialog id="dlg-position" class="wide">
+    <form method="dialog" id="form-position">
+      <h2 id="pos-title">New position</h2>
+      <div class="grid-4" id="pos-fields">
+        <label class="field">Ticker <input name="ticker" required autocomplete="off" placeholder="e.g. MRK or SPX"></label>
+        <label class="field">Direction
+          <select name="direction"><option value="long">LONG</option><option value="short">SHORT</option></select></label>
+        <label class="field">Stop (stock price) <input name="stop" type="number" step="0.01" min="0"></label>
+        <label class="field">Target (stock price) <input name="target" type="number" step="0.01" min="0"></label>
+      </div>
+      <h3 id="legs-title">Legs</h3>
+      <p class="hint">Contracts: positive = bought, negative = sold (e.g. 3 and −2). Prices per share, as in TWS.</p>
+      <div class="table-wrap">
+        <table class="leg-editor">
+          <thead><tr><th>#</th><th>P/C</th><th>Strike</th><th>Expiry</th><th>Av. price</th><th>Stock at entry</th>
+            <th>Entry date</th><th title="Only for index options with several classes, e.g. SPXW">Class</th><th></th></tr></thead>
+          <tbody id="leg-rows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn sm" id="add-leg-row">+ Leg</button>
+      <p class="form-error" hidden></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary" id="pos-submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-close">
+    <form method="dialog" id="form-close">
+      <h2>Close leg <span id="close-what" class="muted"></span></h2>
+      <div class="grid-3">
+        <label class="field">Contracts <input name="qty" type="number" min="1" step="1" required></label>
+        <label class="field">Price per share <input name="price" type="number" min="0" step="0.01" required></label>
+        <label class="field">Date <input name="date" type="date" required></label>
+      </div>
+      <p class="hint" id="close-hint"></p>
+      <p class="form-error" hidden></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Close leg</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" hidden></div>
+  <script src="/static/portfolio.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

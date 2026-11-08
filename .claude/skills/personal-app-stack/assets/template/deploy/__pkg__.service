@@ -1,0 +1,23 @@
+# systemd unit for running __TITLE__ on a headless server. Replace YOU and the path, then:
+#   sudo cp deploy/__pkg__.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now __pkg__
+#   journalctl -u __pkg__ -f        # the log
+[Unit]
+Description=__TITLE__
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=YOU
+WorkingDirectory=/home/YOU/__pkg__
+# Listen on this server only; reach it through an SSH tunnel. The app has no login,
+# so never expose the port to the network.
+Environment=__ENV___HOST=127.0.0.1
+Environment=__ENV___PORT=__PORT__
+ExecStart=/home/YOU/__pkg__/.venv/bin/python -u -m __pkg__.main
+# Restart after a crash, but not after Quit in the app (a clean exit)
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

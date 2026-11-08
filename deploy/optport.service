@@ -1,0 +1,23 @@
+# systemd unit for running Option Portfolio on a headless server. Replace YOU and the path, then:
+#   sudo cp deploy/optport.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now optport
+#   journalctl -u optport -f        # the log
+[Unit]
+Description=Option Portfolio
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=YOU
+WorkingDirectory=/home/YOU/optport
+# Listen on this server only; reach it through an SSH tunnel. The app has no login,
+# so never expose the port to the network.
+Environment=OPTPORT_HOST=127.0.0.1
+Environment=OPTPORT_PORT=8771
+ExecStart=/home/YOU/optport/.venv/bin/python -u -m optport.main
+# Restart after a crash, but not after Quit in the app (a clean exit)
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

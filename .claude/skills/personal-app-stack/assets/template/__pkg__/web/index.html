@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>__TITLE__</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='2' width='12' height='12' rx='3' fill='%232f6fde'/></svg>">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="side-head">
+        <a href="#/" class="brand">__TITLE__</a>
+        <button class="btn primary sm" id="new-item">+ New</button>
+      </div>
+      <div class="side-filters">
+        <input type="search" id="item-search" placeholder="Search" autocomplete="off">
+        <select id="item-show" aria-label="Show">
+          <option value="open">Open</option>
+          <option value="done">Done</option>
+          <option value="all">All</option>
+        </select>
+      </div>
+      <nav id="item-list" class="item-list" aria-label="Items"></nav>
+      <div class="side-bottom">
+        <a href="#/settings" class="side-settings">⚙ Settings</a>
+        <button class="side-quit" id="quit" title="Close __TITLE__">⏻ Quit</button>
+      </div>
+    </aside>
+    <main id="main"></main>
+  </div>
+
+  <dialog id="dlg-new">
+    <form method="dialog" id="form-new">
+      <h2>New item</h2>
+      <label class="field">Name <input name="name" required autocomplete="off"></label>
+      <p class="form-error" hidden></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
