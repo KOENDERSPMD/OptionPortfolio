@@ -4,8 +4,8 @@ A personal app for following a portfolio of stock and index options, built like 
 Management System: a local web app with a Python backend. It runs on your own computer (it opens in
 its own window) or on a headless server that you reach through an SSH tunnel.
 
-**Current state:** the **Portfolio** screen, the position page and the IBKR/Yahoo price feeds.
-Next: the **Performance** screen.
+**Current state:** the **Portfolio** and **Performance** screens, the position page and the
+IBKR/Yahoo price feeds.
 
 ## What it does
 
@@ -39,6 +39,29 @@ Next: the **Performance** screen.
   **delete** a leg (for one entered by mistake); **close** a leg at a price and date, wholly or partly
   (closing 1 of 3 contracts splits off a closed leg); **reopen** a closed leg; notes. Closed legs show
   their realized P&L. A roll is a close plus a new leg.
+- **Commissions** (optional): per leg, what opening cost (in the leg form) and what closing cost (in
+  the Close dialog), in dollars. The sheet columns (pos risk, P&L) stay before commissions, as in
+  your sheet; realized P&L and everything on the Performance screen is after commissions. Closing
+  part of a leg shares its opening commission in proportion. **Edit** on a closed leg corrects its
+  close price, date and commission.
+- **Performance screen** (📈 in the sidebar), with a period choice: 1M, 3M, YTD, 1Y, All.
+  - **Daily snapshot:** after each US close (from 16:15 New York, or the next time the app runs
+    before the next open) the app refreshes the prices and saves the portfolio: open positions, risk,
+    size, unrealized P&L and delta dollars. It does not save when the prices could not be refreshed
+    (e.g. TWS not connected) and tries again every 10 minutes; market holidays are skipped. Days on
+    which the app did not run are missing from the history (they cannot be filled in afterwards).
+  - **Total P&L** on a day = realized P&L of all legs closed up to that day + unrealized P&L of the
+    open legs that day, both after commissions. Realized P&L is taken from the legs, so a close
+    entered later still lands on its own date.
+  - **Chart:** P&L over time, from the start of the period. With a **starting capital** in Settings
+    it shows the return in % (P&L ÷ capital) with **SPY** over the same days as a dashed line;
+    without it, P&L in dollars. The last point is today at the latest prices.
+  - **Tiles:** P&L in the period, return %, SPY, realized in the period (also partial closes of
+    positions still open), unrealized now, win rate and profit factor.
+  - **Closed positions** (all legs closed, last close in the period): number, won/lost, win rate,
+    average win and loss, profit factor (total wins ÷ total losses), best/worst, average days held;
+    split by long/short, by month and by ticker; and a list with per position the cost (contracts ×
+    av. price × 100 over all legs), commissions, realized P&L and return (realized ÷ cost).
 - **Prices from Interactive Brokers** (TWS or IB Gateway, read-only, never places orders):
   - stock and index prices, option bid/ask/last/close and delta for every open leg, and your option
     positions in TWS (for the TWS check);
@@ -53,7 +76,7 @@ Next: the **Performance** screen.
 - **Earnings dates from Yahoo Finance**, fetched once a day per ticker and with every Refresh.
   Indexes have none.
 - **Settings (⚙):** TWS host, port and client ID (with **Test connection**), the refresh interval, the
-  stop and expiry warnings, and the interest rate used for calculated deltas.
+  stop and expiry warnings, the interest rate used for calculated deltas, and the starting capital.
 
 ## Setup (Linux)
 
@@ -137,5 +160,7 @@ Delayed Data* on an option quote in TWS.
 - `optport/portfolio.py`: positions and legs, closing legs, and putting the table together.
 - `optport/ibkr.py`: the TWS client (adapted from the Trade Idea app), `optport/earnings.py`: Yahoo.
 - `optport/refresh.py`: the price refresh job and the market-hours scheduler.
+- `optport/performance.py`: daily snapshots, the P&L series against SPY and the closed-position statistics.
+- `optport/web/vendor/`: Lightweight Charts 4.2.3 (TradingView, Apache 2.0) for the Performance chart.
 - `optport/web/`: the browser UI, plain JavaScript and CSS without a build step.
 - `tests/`: pytest; each test gets its own database file.

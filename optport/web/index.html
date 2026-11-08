@@ -15,7 +15,7 @@
       </div>
       <nav class="side-nav" aria-label="Screens">
         <a href="#/" data-nav="portfolio">📋 Portfolio</a>
-        <span class="nav-soon" title="Next screen to build">📈 Performance <span class="muted small">(next)</span></span>
+        <a href="#/performance" data-nav="performance">📈 Performance</a>
       </nav>
       <div class="side-spacer"></div>
       <a href="#/settings" class="tws-status" id="tws-status" title="Connection to TWS / IB Gateway">
@@ -45,11 +45,17 @@
       <div class="table-wrap">
         <table class="leg-editor">
           <thead><tr><th>#</th><th>P/C</th><th>Strike</th><th>Expiry</th><th>Av. price</th><th>Stock at entry</th>
-            <th>Entry date</th><th title="Only for index options with several classes, e.g. SPXW">Class</th><th></th></tr></thead>
+            <th>Entry date</th><th title="Total for the leg, in dollars (optional)">Commission</th>
+            <th title="Only for index options with several classes, e.g. SPXW">Class</th><th></th></tr></thead>
           <tbody id="leg-rows"></tbody>
         </table>
       </div>
       <button type="button" class="btn sm" id="add-leg-row">+ Leg</button>
+      <div class="grid-3" id="close-fields" hidden>
+        <label class="field">Close price per share <input name="close_price" type="number" min="0" step="0.01"></label>
+        <label class="field">Close date <input name="close_date" type="date"></label>
+        <label class="field">Close commission ($) <input name="close_commission" type="number" min="0" step="0.01"></label>
+      </div>
       <p class="form-error" hidden></p>
       <div class="dlg-actions">
         <button type="button" class="btn" data-close>Cancel</button>
@@ -58,13 +64,14 @@
     </form>
   </dialog>
 
-  <dialog id="dlg-close">
+  <dialog id="dlg-close" class="mid">
     <form method="dialog" id="form-close">
       <h2>Close leg <span id="close-what" class="muted"></span></h2>
-      <div class="grid-3">
+      <div class="grid-4">
         <label class="field">Contracts <input name="qty" type="number" min="1" step="1" required></label>
         <label class="field">Price per share <input name="price" type="number" min="0" step="0.01" required></label>
         <label class="field">Date <input name="date" type="date" required></label>
+        <label class="field">Commission ($) <input name="commission" type="number" min="0" step="0.01"></label>
       </div>
       <p class="hint" id="close-hint"></p>
       <p class="form-error" hidden></p>
@@ -76,7 +83,9 @@
   </dialog>
 
   <div id="toast" role="status" hidden></div>
+  <script src="/static/vendor/lightweight-charts-4.2.3.js"></script>
   <script src="/static/portfolio.js"></script>
+  <script src="/static/performance.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

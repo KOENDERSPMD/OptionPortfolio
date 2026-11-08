@@ -7,6 +7,8 @@ Per leg (qty is signed: +3 bought, -2 sold; amounts are per share unless they sa
   pos size               qty x current price x multiplier: what the leg is worth now
   P&L (unrealized)       pos size - pos risk
   delta dollars          qty x multiplier x delta x stock price: the stock exposure in dollars
+  realized (closed leg)  qty x (close price - average price) x multiplier - commissions (open + close)
+Commissions are optional; the sheet columns (pos risk, P&L) are before commissions, as in the sheet.
 The current option price is the mid of bid and ask; without both, the last trade, then the close.
 Delta comes from TWS; without it, it is calculated with Black-Scholes from the option price
 (marked * in the screen).
@@ -92,6 +94,7 @@ def leg_metrics(leg: dict, und: float | None, quote: dict | None, rate: float, t
         "dte": (date.fromisoformat(leg["expiry"]) - today).days,
         "price_now": None, "price_source": None, "pos_size": None, "pnl": None, "realized": None,
         "iv_now": None, "tv_now": None, "delta": None, "delta_calc": False, "delta_dollars": None,
+        "commission": (leg.get("commission") or 0.0) + (leg.get("close_commission") or 0.0),
     }
     if leg.get("und_entry"):
         out["iv_entry"] = intrinsic(leg["und_entry"], K, right)
@@ -99,7 +102,7 @@ def leg_metrics(leg: dict, und: float | None, quote: dict | None, rate: float, t
 
     if leg.get("close_price") is not None:  # closed: only the realized result matters
         out["price_now"], out["price_source"] = leg["close_price"], "closed"
-        out["realized"] = qty * (leg["close_price"] - leg["avg_price"]) * mult
+        out["realized"] = qty * (leg["close_price"] - leg["avg_price"]) * mult - out["commission"]
         return out
 
     price, source = option_price(quote)
@@ -166,6 +169,7 @@ def position_metrics(pos: dict, legs: list[dict], und: float | None, earnings_da
         "pnl": total("pnl", open_legs),
         "delta_dollars": total("delta_dollars", open_legs),
         "realized": sum(lg["m"]["realized"] for lg in closed) if closed else 0.0,
+        "open_commission": sum(lg["m"]["commission"] for lg in open_legs),
         "stop_state": stop_state(pos["direction"], und, pos.get("stop"), cfg["stop_warn_pct"]),
         "to_stop": pct_to(und, pos.get("stop")),
         "to_target": pct_to(und, pos.get("target")),
@@ -177,12 +181,13 @@ def position_metrics(pos: dict, legs: list[dict], und: float | None, earnings_da
 def portfolio_totals(positions: list[dict]) -> dict:
     """Sums over open positions; a missing value (no quote yet) is left out and counted."""
     out = {"positions": 0, "pos_risk": 0.0, "pos_size": 0.0, "pnl": 0.0, "delta_dollars": 0.0,
-           "realized": 0.0, "missing": 0}
+           "realized": 0.0, "open_commission": 0.0, "missing": 0}
     for p in positions:
         out["realized"] += p["m"]["realized"]
         if not p["m"]["open"]:
             continue
         out["positions"] += 1
+        out["open_commission"] += p["m"]["open_commission"]
         for key in ("pos_risk", "pos_size", "pnl", "delta_dollars"):
             if p["m"][key] is None:
                 out["missing"] += key == "pnl"

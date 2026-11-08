@@ -243,7 +243,7 @@ function legTable(legs, open) {
     <thead><tr><th>Leg</th><th class="num">#</th><th>P/C</th><th class="num">Strike</th><th>Expiry</th>
       <th class="num">Av. price</th><th class="num">Und. entry</th><th>Entry</th>
       ${open ? '<th class="num">DTE</th><th class="num">Bid</th><th class="num">Ask</th><th class="num">Price*</th><th class="num">P&amp;L</th><th class="num">Delta</th><th class="num">TWS qty</th>'
-    : '<th class="num">Close price</th><th>Closed</th><th class="num">Realized</th>'}
+    : '<th class="num">Close price</th><th>Closed</th><th class="num">Commissions</th><th class="num" title="After commissions">Realized</th>'}
       <th></th></tr></thead>
     <tbody>${legs.map((l) => {
     const lm = l.m;
@@ -253,10 +253,10 @@ function legTable(legs, open) {
          <td class="num ${signClass(lm.pnl)}">${fmtUsd(lm.pnl)}</td>
          <td class="num">${fmtNum(lm.delta)}${lm.delta_calc ? '*' : ''}</td>
          <td class="num ${l.broker_mismatch ? 'warn-text' : ''}">${l.broker_qty ?? dash}</td>`
-      : `<td class="num">${fmtNum(l.close_price)}</td><td>${fmtDate(l.close_date)}</td><td class="num ${signClass(lm.realized)}">${fmtUsd(lm.realized)}</td>`;
+      : `<td class="num">${fmtNum(l.close_price)}</td><td>${fmtDate(l.close_date)}</td><td class="num">${lm.commission ? fmtNum(lm.commission) : dash}</td><td class="num ${signClass(lm.realized)}">${fmtUsd(lm.realized)}</td>`;
     const acts = open
       ? `<button class="btn sm" data-act="close" data-leg="${l.id}">Close</button> <button class="btn sm" data-act="edit" data-leg="${l.id}">Edit</button> <button class="btn sm danger" data-act="delete" data-leg="${l.id}" title="Delete (for a leg entered by mistake)">✕</button>`
-      : `<button class="btn sm" data-act="reopen" data-leg="${l.id}">Reopen</button>`;
+      : `<button class="btn sm" data-act="edit" data-leg="${l.id}" title="Correct the entry, e.g. a commission">Edit</button> <button class="btn sm" data-act="reopen" data-leg="${l.id}">Reopen</button>`;
     return `<tr><td class="muted">${l.number}</td><td class="num">${qtyText(l.qty)}</td><td>${PC(l.right)}</td><td class="num">${fmtNum(l.strike)}</td>
       <td>${fmtDate(l.expiry)}${l.trading_class ? ` <span class="muted tiny">${esc(l.trading_class)}</span>` : ''}</td>
       <td class="num">${fmtNum(l.avg_price)}</td><td class="num">${fmtNum(l.und_entry)}</td><td>${fmtDate(l.entry_date)}</td>${cells}
@@ -298,6 +298,7 @@ function legRowHtml(l = {}) {
     <td><input name="avg_price" type="number" step="0.01" min="0" required value="${v(l.avg_price)}" class="w-num"></td>
     <td><input name="und_entry" type="number" step="0.01" min="0" value="${v(l.und_entry)}" class="w-num"></td>
     <td><input name="entry_date" type="date" required value="${v(l.entry_date ?? todayIso())}"></td>
+    <td><input name="commission" type="number" step="0.01" min="0" value="${v(l.commission)}" class="w-num"></td>
     <td><input name="trading_class" value="${v(l.trading_class)}" class="w-cls" autocomplete="off"></td>
     <td><button type="button" class="btn sm" data-remove title="Remove this leg">✕</button></td>
   </tr>`;
@@ -331,6 +332,13 @@ function openPositionDialog(pos = null, mode = pos ? 'edit-pos' : 'new', leg = n
   if (mode === 'new') addLegRow();
   if (mode === 'add') addLegRow({ und_entry: pos.und.price != null ? Number(pos.und.price.toFixed(2)) : null });
   if (mode === 'edit') addLegRow(leg);
+  const closedLeg = mode === 'edit' && leg.close_price != null;
+  document.getElementById('close-fields').hidden = !closedLeg;
+  formPos.querySelectorAll('#close-fields input').forEach((el) => { el.disabled = !closedLeg; el.required = closedLeg && el.name !== 'close_commission'; });
+  if (closedLeg) {
+    formPos.close_price.value = leg.close_price; formPos.close_date.value = leg.close_date;
+    formPos.close_commission.value = leg.close_commission ?? '';
+  }
   legRows.querySelectorAll('[data-remove]').forEach((b) => { b.hidden = mode !== 'new'; });
   dlgPos.showModal();
 }
@@ -348,7 +356,7 @@ function readLeg(tr) {
   return {
     qty: Number(get('qty')), right: get('right'), strike: Number(get('strike')), expiry: get('expiry'),
     avg_price: Number(get('avg_price')), und_entry: numOrNull(get('und_entry')), entry_date: get('entry_date'),
-    trading_class: get('trading_class').trim() || null,
+    trading_class: get('trading_class').trim() || null, commission: numOrNull(get('commission')),
   };
 }
 
@@ -364,7 +372,14 @@ formPos.addEventListener('submit', async (ev) => {
     if (mode === 'new') result = await api('POST', '/api/positions', { ...posFields, legs });
     else if (mode === 'edit-pos') result = await api('PATCH', `/api/positions/${pos.id}`, posFields);
     else if (mode === 'add') result = await api('POST', `/api/positions/${pos.id}/legs`, legs[0]);
-    else result = await api('PATCH', `/api/legs/${leg.id}`, legs[0]);
+    else {
+      const body = { ...legs[0] };
+      if (leg.close_price != null) {
+        Object.assign(body, { close_price: Number(formPos.close_price.value), close_date: formPos.close_date.value,
+          close_commission: numOrNull(formPos.close_commission.value) });
+      }
+      result = await api('PATCH', `/api/legs/${leg.id}`, body);
+    }
     dlgPos.close();
     toast(mode === 'new' ? `${result.number} ${result.ticker} added — click Refresh for prices` : 'Saved');
     if (mode === 'new') location.hash = '#/';
@@ -393,7 +408,8 @@ formClose.addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const { p, leg } = closing;
   try {
-    await api('POST', `/api/legs/${leg.id}/close`, { qty: Number(formClose.qty.value), price: Number(formClose.price.value), date: formClose.date.value });
+    await api('POST', `/api/legs/${leg.id}/close`, { qty: Number(formClose.qty.value), price: Number(formClose.price.value),
+      date: formClose.date.value, commission: numOrNull(formClose.commission.value) });
     dlgClose.close();
     toast('Leg closed');
     renderPosition(p.id);

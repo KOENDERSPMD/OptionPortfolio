@@ -13,7 +13,8 @@ class RuleError(Exception):
     pass
 
 
-LEG_FIELDS = ("qty", "right", "strike", "expiry", "avg_price", "und_entry", "entry_date", "multiplier", "trading_class")
+LEG_FIELDS = ("qty", "right", "strike", "expiry", "avg_price", "und_entry", "entry_date", "multiplier", "trading_class",
+              "commission")
 
 
 def position_row(conn, pos_id: int) -> dict:
@@ -68,8 +69,9 @@ def delete_position(conn, pos_id: int) -> None:
 
 
 def _insert_leg(conn, pos_id: int, lg: dict) -> int:
-    cols = [f for f in LEG_FIELDS if lg.get(f) is not None] + ["close_price", "close_date"]
-    vals = [lg[f] for f in cols[:-2]] + [lg.get("close_price"), lg.get("close_date")]
+    extra = ["close_price", "close_date", "close_commission"]
+    cols = [f for f in LEG_FIELDS if lg.get(f) is not None] + extra
+    vals = [lg[f] for f in cols[:-len(extra)]] + [lg.get(f) for f in extra]
     if lg.get("trading_class") is not None:
         vals[cols.index("trading_class")] = lg["trading_class"].strip().upper() or None
     cur = conn.execute(f"INSERT INTO legs (position_id, {', '.join(cols)}, created_at) "
@@ -89,6 +91,11 @@ def add_leg(conn, pos_id: int, lg: dict) -> int:
 def update_leg(conn, leg_id: int, fields: dict) -> int:
     leg = leg_row(conn, leg_id)
     _check_leg(fields)
+    after = {**leg, **fields}
+    if (after["close_price"] is None) != (after["close_date"] is None):
+        raise RuleError("A closed leg needs both a close price and a close date. To reopen a leg, use Reopen.")
+    if after["close_date"] is not None and after["close_date"] < after["entry_date"]:
+        raise RuleError("The close date is before the entry date.")
     if "trading_class" in fields and fields["trading_class"] is not None:
         fields["trading_class"] = fields["trading_class"].strip().upper() or None
     if fields:
@@ -106,9 +113,11 @@ def delete_leg(conn, leg_id: int) -> int:
     return leg["position_id"]
 
 
-def close_leg(conn, leg_id: int, qty: int | None, price: float, close_date: str) -> int:
+def close_leg(conn, leg_id: int, qty: int | None, price: float, close_date: str,
+              commission: float | None = None) -> int:
     """Close all of a leg, or `qty` contracts of it (always counted positive). A partial close
-    splits off a closed leg with that quantity; the open leg keeps the rest."""
+    splits off a closed leg with that quantity; the open leg keeps the rest, and the opening
+    commission is shared in proportion. `commission` is what closing cost."""
     leg = leg_row(conn, leg_id)
     if leg["close_price"] is not None:
         raise RuleError("This leg is already closed.")
@@ -120,10 +129,15 @@ def close_leg(conn, leg_id: int, qty: int | None, price: float, close_date: str)
         raise RuleError(f"Close between 1 and {total} contract(s).")
     sign = 1 if leg["qty"] > 0 else -1
     if n == total:
-        conn.execute("UPDATE legs SET close_price = ?, close_date = ? WHERE id = ?", (price, close_date, leg_id))
+        conn.execute("UPDATE legs SET close_price = ?, close_date = ?, close_commission = ? WHERE id = ?",
+                     (price, close_date, commission, leg_id))
     else:
-        conn.execute("UPDATE legs SET qty = ? WHERE id = ?", (sign * (total - n), leg_id))
-        _insert_leg(conn, leg["position_id"], {**leg, "qty": sign * n, "close_price": price, "close_date": close_date})
+        opened = leg["commission"]
+        part = None if opened is None else round(opened * n / total, 2)
+        conn.execute("UPDATE legs SET qty = ?, commission = ? WHERE id = ?",
+                     (sign * (total - n), None if opened is None else round(opened - part, 2), leg_id))
+        _insert_leg(conn, leg["position_id"], {**leg, "qty": sign * n, "commission": part, "close_price": price,
+                                               "close_date": close_date, "close_commission": commission})
     conn.execute("UPDATE positions SET updated_at = ? WHERE id = ?", (db.now_iso(), leg["position_id"]))
     conn.commit()
     return leg["position_id"]
@@ -131,7 +145,7 @@ def close_leg(conn, leg_id: int, qty: int | None, price: float, close_date: str)
 
 def reopen_leg(conn, leg_id: int) -> int:
     leg = leg_row(conn, leg_id)
-    conn.execute("UPDATE legs SET close_price = NULL, close_date = NULL WHERE id = ?", (leg_id,))
+    conn.execute("UPDATE legs SET close_price = NULL, close_date = NULL, close_commission = NULL WHERE id = ?", (leg_id,))
     conn.commit()
     return leg["position_id"]
 

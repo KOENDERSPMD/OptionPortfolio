@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from . import db, ibkr, portfolio, refresh, settings
+from . import db, ibkr, performance, portfolio, refresh, settings
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
@@ -102,6 +102,7 @@ class LegIn(BaseModel):
     entry_date: str = Field(pattern=ISO_DATE)
     multiplier: int = Field(default=100, ge=1, le=10_000)
     trading_class: str | None = Field(default=None, max_length=12)
+    commission: float | None = Field(default=None, ge=0, le=100_000)   # $ paid when opening
 
     _dates = field_validator("expiry", "entry_date")(_valid_date)
 
@@ -116,8 +117,12 @@ class LegUpdate(BaseModel):
     entry_date: str | None = Field(default=None, pattern=ISO_DATE)
     multiplier: int | None = Field(default=None, ge=1, le=10_000)
     trading_class: str | None = Field(default=None, max_length=12)
+    commission: float | None = Field(default=None, ge=0, le=100_000)
+    close_price: float | None = Field(default=None, ge=0, le=1_000_000)   # correcting a closed leg
+    close_date: str | None = Field(default=None, pattern=ISO_DATE)
+    close_commission: float | None = Field(default=None, ge=0, le=100_000)
 
-    _dates = field_validator("expiry", "entry_date")(_valid_date)
+    _dates = field_validator("expiry", "entry_date", "close_date")(_valid_date)
 
 
 class PositionIn(BaseModel):
@@ -141,6 +146,7 @@ class CloseIn(BaseModel):
     price: float = Field(ge=0, le=1_000_000)
     date: str = Field(pattern=ISO_DATE)
     qty: int | None = Field(default=None, ge=1, le=10_000)   # contracts to close; empty = all
+    commission: float | None = Field(default=None, ge=0, le=100_000)   # $ paid for closing
 
     _dates = field_validator("date")(_valid_date)
 
@@ -217,7 +223,7 @@ def delete_leg(leg_id: int, conn=Depends(get_conn)):
 
 @app.post("/api/legs/{leg_id}/close")
 def close_leg(leg_id: int, body: CloseIn, conn=Depends(get_conn)):
-    pos_id = domain_errors(lambda: portfolio.close_leg(conn, leg_id, body.qty, body.price, body.date))
+    pos_id = domain_errors(lambda: portfolio.close_leg(conn, leg_id, body.qty, body.price, body.date, body.commission))
     return one_position(conn, pos_id)
 
 
@@ -225,6 +231,13 @@ def close_leg(leg_id: int, body: CloseIn, conn=Depends(get_conn)):
 def reopen_leg(leg_id: int, conn=Depends(get_conn)):
     pos_id = domain_errors(lambda: portfolio.reopen_leg(conn, leg_id))
     return one_position(conn, pos_id)
+
+
+# ---- performance ------------------------------------------------------------------------------------
+
+@app.get("/api/performance")
+def get_performance(period: Literal["1m", "3m", "ytd", "1y", "all"] = "all", conn=Depends(get_conn)):
+    return performance.build(conn, period)
 
 
 # ---- prices -----------------------------------------------------------------------------------------

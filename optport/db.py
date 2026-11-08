@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS legs (
     trading_class TEXT,                    -- e.g. SPXW; empty = let IBKR choose
     close_price   REAL,
     close_date    TEXT,
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL,
+    commission    REAL,                    -- added in v2 (also in migrate): $ paid when opening
+    close_commission REAL                  -- added in v2 (also in migrate): $ paid when closing
 );
 CREATE INDEX IF NOT EXISTS legs_position ON legs(position_id);
 
@@ -87,6 +89,28 @@ CREATE TABLE IF NOT EXISTS broker_positions (
     qty         REAL NOT NULL,
     fetched_at  TEXT NOT NULL,
     PRIMARY KEY (ticker, expiry, right, strike)
+);
+
+-- The portfolio after each US close, for the Performance screen. Amounts in dollars.
+CREATE TABLE IF NOT EXISTS snapshots (
+    date             TEXT PRIMARY KEY,     -- the trading day, YYYY-MM-DD
+    positions        INTEGER NOT NULL,     -- open positions
+    pos_risk         REAL NOT NULL,        -- what the open legs cost
+    pos_size         REAL NOT NULL,        -- what the open legs were worth
+    unrealized       REAL NOT NULL,        -- pos_size - pos_risk
+    open_commission  REAL NOT NULL,        -- commissions paid on the open legs
+    realized         REAL NOT NULL,        -- all closed legs so far, after commissions
+    delta_dollars    REAL,
+    missing          INTEGER NOT NULL DEFAULT 0,   -- open positions without a price
+    taken_at         TEXT NOT NULL
+);
+
+-- Daily closes of the benchmark (SPY), from IBKR.
+CREATE TABLE IF NOT EXISTS bench_closes (
+    ticker  TEXT NOT NULL,
+    date    TEXT NOT NULL,
+    close   REAL NOT NULL,
+    PRIMARY KEY (ticker, date)
 );
 
 -- App settings: key -> JSON value. Defaults live in settings.py, so only changed values are stored.
@@ -142,10 +166,8 @@ def init(path: str | None = None) -> None:
 
 def migrate(conn: sqlite3.Connection) -> None:
     """Bring databases created by earlier versions up to date. Only ever add; never lose data.
-
-    Nothing to migrate yet (first version). A column added later goes in its CREATE TABLE above and
-    here, e.g.:  add_columns(conn, "legs", [("commission", "REAL")])
-    """
+    A column added later goes in its CREATE TABLE above and here."""
+    add_columns(conn, "legs", [("commission", "REAL"), ("close_commission", "REAL")])  # v2
 
 
 def add_columns(conn: sqlite3.Connection, table: str, columns: list[tuple[str, str]]) -> None:

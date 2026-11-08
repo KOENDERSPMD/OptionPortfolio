@@ -165,7 +165,8 @@ def market_open(now: datetime | None = None) -> bool:
 
 class Scheduler:
     """Refresh once shortly after start (when TWS has had time to connect), then on the interval
-    during market hours. Earnings dates refresh with it when they are older than a day."""
+    during market hours. Earnings dates refresh with it when they are older than a day. Outside
+    market hours it saves the day's snapshot for the Performance screen once."""
 
     def __init__(self):
         self._stop = threading.Event()
@@ -180,8 +181,11 @@ class Scheduler:
         self._stop.set()
 
     def _loop(self):
+        from . import performance  # imported here: performance imports this module
+
         self._stop.wait(8)
         last = None
+        last_snapshot_try = None
         while not self._stop.is_set():
             with db.closing(db.connect()) as conn:
                 minutes = settings.load(conn)["refresh_minutes"]
@@ -192,6 +196,14 @@ class Scheduler:
                     last = datetime.now()
                 except Busy:
                     pass
+            # After the close: the day's snapshot for the Performance screen (tried every 10 minutes
+            # until it succeeds, e.g. when TWS was not connected yet).
+            if not market_open() and (last_snapshot_try is None or datetime.now() - last_snapshot_try >= timedelta(minutes=10)):
+                last_snapshot_try = datetime.now()
+                try:
+                    performance.snapshot_if_due()   # does nothing when today's is already saved
+                except Exception as e:  # noqa: BLE001 - keep the scheduler alive
+                    print(f"Snapshot failed: {e}", flush=True)
             self._stop.wait(30)
 
 

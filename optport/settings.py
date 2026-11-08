@@ -10,6 +10,7 @@ DEFAULTS = {
     "refresh_minutes": 5,        # automatic price refresh during US market hours; 0 = off
     "stop_warn_pct": 3.0,        # stop cell orange when the price is this close to the stop (%)
     "expiry_warn_days": 7,       # expiry cell red from this many days before expiry
+    "capital": 0,                # starting capital for the return %; 0 = not set
 }
 SECRETS: set[str] = set()       # none yet; the IBKR connection needs no password
 
@@ -60,6 +61,7 @@ def update(conn, changes: dict) -> None:
     _number(changes, "refresh_minutes", 0, 240, "The refresh interval", whole=True)
     _number(changes, "stop_warn_pct", 0, 50, "The stop warning distance")
     _number(changes, "expiry_warn_days", 0, 90, "The expiry warning", whole=True)
+    _number(changes, "capital", 0, 1_000_000_000, "The starting capital")
     for key, value in changes.items():
         conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
                      "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, json.dumps(value)))

@@ -188,6 +188,10 @@ class TWSClient:
     def positions(self) -> list[dict]:
         return self.call(self._positions)
 
+    def daily_closes(self, ticker: str, duration: str = "2 Y") -> list[dict]:
+        """[{'date': 'YYYY-MM-DD', 'close'}] from the price history (needs no market data subscription)."""
+        return self.call(lambda: self._daily_closes(ticker, duration))
+
     # ---- implementation ----------------------------------------------------------------------------
 
     async def _underlying(self, ticker: str):
@@ -224,6 +228,14 @@ class TWSClient:
         if not bars:
             raise TWSError(self._error_text(contract.symbol) or f"No price for {contract.symbol} from IBKR.")
         return {"price": bars[-1].close, "source": "close"}
+
+    async def _daily_closes(self, ticker: str, duration: str) -> list[dict]:
+        contract = await self._underlying(ticker)
+        bars = await self.ib.reqHistoricalDataAsync(contract, endDateTime="", durationStr=duration, barSizeSetting="1 day",
+                                                    whatToShow="TRADES", useRTH=True, formatDate=1, timeout=60)
+        if not bars:
+            raise TWSError(self._error_text(contract.symbol) or f"IBKR returned no price history for {contract.symbol}.")
+        return [{"date": str(b.date)[:10], "close": b.close} for b in bars]
 
     async def _option_quotes(self, wanted: list[dict]) -> list[dict]:
         from ib_async import Option

@@ -1,6 +1,6 @@
 'use strict';
-// Option Portfolio — browser UI (vanilla JS, no build step). Hash routes: #/, #/position/<id>, #/settings.
-// portfolio.js (loaded first) holds the portfolio table and the position page.
+// Option Portfolio — browser UI (vanilla JS, no build step). Hash routes: #/, #/position/<id>, #/performance,
+// #/settings. portfolio.js and performance.js (loaded first) hold the larger screens.
 
 const main = document.getElementById('main');
 const state = { show: 'open', tws: { connected: false } };
@@ -116,6 +116,7 @@ async function renderSettings() {
         <label class="field">Stop warning: within (%) <input id="stop-warn" type="number" min="0" step="0.5" value="${s.stop_warn_pct}"></label>
         <label class="field">Expiry warning: from (days before) <input id="exp-warn" type="number" min="0" value="${s.expiry_warn_days}"></label>
         <label class="field">Interest rate (for calculated delta) <input id="rate" type="number" min="0" step="0.0025" value="${s.interest_rate}"></label>
+        <label class="field">Starting capital ($, for the return % on Performance) <input id="capital" type="number" min="0" step="1000" value="${s.capital || ''}" placeholder="not set"></label>
       </div>
       <p class="hint">Market hours: Monday–Friday 9:30–16:15 New York. Earnings dates come from Yahoo Finance and are refreshed once a day and with every Refresh.</p>
       <div class="card-foot"><span></span><button class="btn primary" id="save-prices">Save</button></div>
@@ -133,6 +134,7 @@ async function renderSettings() {
     stop_warn_pct: Number(document.getElementById('stop-warn').value),
     expiry_warn_days: Number(document.getElementById('exp-warn').value),
     interest_rate: Number(document.getElementById('rate').value),
+    capital: Number(document.getElementById('capital').value || 0),
   }));
   document.getElementById('tws-test').addEventListener('click', async (ev) => {
     ev.target.disabled = true;
@@ -168,10 +170,11 @@ setInterval(checkVersion, 60000);
 
 function route() {
   const m = location.hash.match(/^#\/position\/(\d+)/);
-  const nav = location.hash.startsWith('#/settings') ? 'settings' : 'portfolio';
+  const nav = location.hash.startsWith('#/settings') ? 'settings' : location.hash.startsWith('#/performance') ? 'performance' : 'portfolio';
   document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === nav));
   if (m) renderPosition(Number(m[1]));
   else if (nav === 'settings') renderSettings();
+  else if (nav === 'performance') renderPerformance();
   else renderPortfolio();
 }
 window.addEventListener('hashchange', route);

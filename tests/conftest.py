@@ -43,6 +43,9 @@ class FakeTWS:
     def positions(self):
         return self.broker
 
+    def daily_closes(self, ticker, duration='2 Y'):
+        return getattr(self, 'closes', [])
+
 
 @pytest.fixture
 def conn(tmp_path, monkeypatch):
